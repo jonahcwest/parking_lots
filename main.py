@@ -1,5 +1,6 @@
 import itertools
 import json
+import time
 
 import torch
 import torch.nn as nn
@@ -10,7 +11,9 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 
 DATA_PATH = "dataset/train"
-MAX_IMAGES = 200
+MAX_IMAGES = 1000
+BATCH_SIZE = 32
+LOG_INTERVAL = 3
 
 
 class Net(nn.Module):
@@ -24,7 +27,7 @@ class Net(nn.Module):
         x = self.conv(x)
         x = F.relu(x)
         x = self.pool(x)
-        x = torch.flatten(x, 1)  # flatten all dimensions except batch
+        x = torch.flatten(x, 1)
         x = self.linear(x)
         return x
 
@@ -74,19 +77,27 @@ class Data(Dataset):
 
 
 def main():
+    device = torch.device("mps")
+
     data = Data()
-    data_loader = DataLoader(data, batch_size=32)
+    data_loader = DataLoader(data, batch_size=BATCH_SIZE)
 
     net = Net()
+    net = net.to(device)
 
     criterion = nn.MSELoss()
     optimizer = optim.Adam(net.parameters())
 
-    for epoch in range(2):  # loop over the dataset multiple times
+    elapsed = time.time()
+    elapsed_steps = 0
+
+    while True:
         running_loss = 0.0
-        for i, data in enumerate(data_loader, 0):
+        for data in data_loader:
             # get the inputs; data is a list of [inputs, labels]
             inputs, labels = data
+            inputs = inputs.to(device)
+            labels = labels.to(device)
 
             # zero the parameter gradients
             optimizer.zero_grad()
@@ -97,14 +108,20 @@ def main():
             loss.backward()
             optimizer.step()
 
-            # print statistics
+            elapsed_steps += 1
             running_loss += loss.item()
-            # if i % 2000 == 1999:  # print every 2000 mini-batches
-            if True:
-                print(f"[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 2000:.3f}")
-                running_loss = 0.0
 
-    print("Finished Training")
+            if time.time() - elapsed > LOG_INTERVAL:
+                print(f"avg loss: {running_loss / elapsed_steps}")
+
+                # print examples
+                print("example:")
+                print(round(outputs[0][0].item()), round(outputs[0][1].item()))
+                print(round(labels[0][0].item()), round(labels[0][1].item()))
+
+                elapsed = time.time()
+                elapsed_steps = 0
+                running_loss = 0
 
 
 if __name__ == "__main__":
