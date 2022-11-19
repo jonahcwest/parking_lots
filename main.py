@@ -99,9 +99,9 @@ def main():
 
     elapsed = time.time()
     elapsed_steps = 0
+    running_loss = 0
 
     while True:
-        running_loss = 0.0
         for data in data_loader:
             inputs, labels = data
             inputs = inputs.to(device)
