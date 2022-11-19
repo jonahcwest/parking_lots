@@ -1,5 +1,6 @@
 import itertools
 import json
+import os
 import time
 
 import torch
@@ -10,13 +11,13 @@ import torchvision.transforms as transforms
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 
-DATA_PATH = "dataset/train"
+
 MODEL_STATE = "model.pt"
 OPTIMIZER_STATE = "optimizer.pt"
 
-MAX_IMAGES = 1000
+MAX_IMAGES = 1200
 BATCH_SIZE = 32
-LOG_INTERVAL = 3
+LOG_INTERVAL = 5
 
 
 class Net(nn.Module):
@@ -82,14 +83,19 @@ class Data(Dataset):
 def main():
     device = torch.device("mps")
 
-    data = Data(DATA_PATH)
-    data_loader = DataLoader(data, batch_size=BATCH_SIZE)
-
     net = Net()
     net = net.to(device)
+    if os.path.isfile(MODEL_STATE):
+        net.load_state_dict(torch.load(MODEL_STATE))
+
+    optimizer = optim.Adam(net.parameters())
+    if os.path.isfile(OPTIMIZER_STATE):
+        optimizer.load_state_dict(torch.load(OPTIMIZER_STATE))
 
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(net.parameters())
+
+    data = Data("dataset/train")
+    data_loader = DataLoader(data, batch_size=BATCH_SIZE)
 
     elapsed = time.time()
     elapsed_steps = 0
@@ -97,15 +103,12 @@ def main():
     while True:
         running_loss = 0.0
         for data in data_loader:
-            # get the inputs; data is a list of [inputs, labels]
             inputs, labels = data
             inputs = inputs.to(device)
             labels = labels.to(device)
 
-            # zero the parameter gradients
             optimizer.zero_grad()
 
-            # forward + backward + optimize
             outputs = net(inputs)
             loss = criterion(outputs, labels)
             loss.backward()
@@ -120,7 +123,7 @@ def main():
 
                 print(f"avg loss: {running_loss / elapsed_steps}")
 
-                # print examples
+                # print a single sample as an example
                 print("example:")
                 print(round(outputs[0][0].item()), round(outputs[0][1].item()))
                 print(round(labels[0][0].item()), round(labels[0][1].item()))
