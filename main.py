@@ -11,6 +11,9 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 
 DATA_PATH = "dataset/train"
+MODEL_STATE = "model.pt"
+OPTIMIZER_STATE = "optimizer.pt"
+
 MAX_IMAGES = 1000
 BATCH_SIZE = 32
 LOG_INTERVAL = 3
@@ -33,9 +36,9 @@ class Net(nn.Module):
 
 
 class Data(Dataset):
-    def __init__(self):
+    def __init__(self, data_path):
         parsed = 0
-        with open(f"{DATA_PATH}/_annotations.coco.json", "r") as f:
+        with open(f"{data_path}/_annotations.coco.json", "r") as f:
             content = f.read()
             parsed = json.loads(content)
 
@@ -61,7 +64,7 @@ class Data(Dataset):
         for file_name in file_name_to_spots:
             to_tensor = transforms.ToTensor()
             normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-            with Image.open(f"{DATA_PATH}/{file_name}", "r") as image:
+            with Image.open(f"{data_path}/{file_name}", "r") as image:
                 self.images.append(
                     [
                         normalize(to_tensor(image)),
@@ -79,7 +82,7 @@ class Data(Dataset):
 def main():
     device = torch.device("mps")
 
-    data = Data()
+    data = Data(DATA_PATH)
     data_loader = DataLoader(data, batch_size=BATCH_SIZE)
 
     net = Net()
@@ -112,6 +115,9 @@ def main():
             running_loss += loss.item()
 
             if time.time() - elapsed > LOG_INTERVAL:
+                torch.save(net.state_dict(), MODEL_STATE)
+                torch.save(optimizer.state_dict(), OPTIMIZER_STATE)
+
                 print(f"avg loss: {running_loss / elapsed_steps}")
 
                 # print examples
