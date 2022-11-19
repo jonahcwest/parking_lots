@@ -1,14 +1,32 @@
 import itertools
-from torch.utils.data import Dataset
-from PIL import Image
 import json
-import torch
-import torchvision
-import torchvision.transforms as transforms
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+import torchvision.transforms as transforms
+from PIL import Image
+from torch.utils.data import DataLoader, Dataset
 
 DATA_PATH = "dataset/train"
 MAX_IMAGES = 200
+
+
+class Net(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv = nn.Conv2d(3, 6, 5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.linear = nn.Linear(606744, 2)
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = F.relu(x)
+        x = self.pool(x)
+        x = torch.flatten(x, 1)  # flatten all dimensions except batch
+        x = self.linear(x)
+        return x
 
 
 class Data(Dataset):
@@ -42,10 +60,10 @@ class Data(Dataset):
             normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             with Image.open(f"{DATA_PATH}/{file_name}", "r") as image:
                 self.images.append(
-                    {
-                        "image": normalize(to_tensor(image)),
-                        "spots": file_name_to_spots[file_name],
-                    }
+                    [
+                        normalize(to_tensor(image)),
+                        torch.Tensor([*file_name_to_spots[file_name][1:]]),
+                    ]
                 )
 
     def __len__(self):
@@ -57,7 +75,36 @@ class Data(Dataset):
 
 def main():
     data = Data()
-    data_iter = iter(data)
+    data_loader = DataLoader(data, batch_size=32)
+
+    net = Net()
+
+    criterion = nn.MSELoss()
+    optimizer = optim.Adam(net.parameters())
+
+    for epoch in range(2):  # loop over the dataset multiple times
+        running_loss = 0.0
+        for i, data in enumerate(data_loader, 0):
+            # get the inputs; data is a list of [inputs, labels]
+            inputs, labels = data
+
+            # zero the parameter gradients
+            optimizer.zero_grad()
+
+            # forward + backward + optimize
+            outputs = net(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+            # print statistics
+            running_loss += loss.item()
+            # if i % 2000 == 1999:  # print every 2000 mini-batches
+            if True:
+                print(f"[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 2000:.3f}")
+                running_loss = 0.0
+
+    print("Finished Training")
 
 
 if __name__ == "__main__":
