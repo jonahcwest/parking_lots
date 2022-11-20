@@ -1,6 +1,7 @@
 import itertools
 import json
 import os
+import random
 import time
 
 import torch
@@ -11,11 +12,10 @@ import torchvision.transforms as transforms
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 
-
 MODEL_STATE = "model.pt"
 OPTIMIZER_STATE = "optimizer.pt"
 
-MAX_IMAGES = 1200
+MAX_IMAGES = 1000
 BATCH_SIZE = 32
 LOG_INTERVAL = 5
 
@@ -23,16 +23,16 @@ LOG_INTERVAL = 5
 class Net(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv = nn.Conv2d(3, 6, 5)
+        self.conv1 = nn.Conv2d(3, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
-        self.linear = nn.Linear(606744, 2)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        self.linear = nn.Linear(394384, 2)
 
     def forward(self, x):
-        x = self.conv(x)
-        x = F.relu(x)
-        x = self.pool(x)
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
         x = torch.flatten(x, 1)
-        x = self.linear(x)
+        x = F.relu(self.linear(x))
         return x
 
 
@@ -57,8 +57,9 @@ class Data(Dataset):
 
             file_name_to_spots[file_name][category_id] += 1
 
+        # choose MAX_IMAGES random images
         file_name_to_spots = dict(
-            itertools.islice(file_name_to_spots.items(), MAX_IMAGES)
+            random.sample(list(file_name_to_spots.items()), MAX_IMAGES)
         )
 
         self.images = []

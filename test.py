@@ -1,27 +1,32 @@
-import torch
-from torch.utils.data import DataLoader
+from argparse import ArgumentParser
+from PIL import Image
 
-from main import MODEL_STATE, Data, Net
+import torch
+import torchvision.transforms as transforms
+
+from main import MODEL_STATE, Net
 
 
 def main():
-    device = torch.device("mps")
 
     net = Net()
-    net = net.to(device)
     net.load_state_dict(torch.load(MODEL_STATE))
 
-    data = Data("dataset/test")
-    data_loader = DataLoader(data, batch_size=8)
+    parser = ArgumentParser()
+    parser.add_argument("file", type=str)
+    args = parser.parse_args()
 
-    inputs, labels = next(iter(data_loader))
-    inputs = inputs.to(device)
+    to_tensor = transforms.ToTensor()
+    normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    inputs = 0
+    with Image.open(args.file, "r") as image:
+        inputs = normalize(to_tensor(image))
+    inputs = inputs[None, :]
+
     outputs = net(inputs)
 
-    for x, y in zip(outputs, labels):
-        print(round(x[0].item()), round(x[1].item()))
-        print(round(y[0].item()), round(y[1].item()))
-        print("===")
+    print("empty:", round(outputs[0][0].item()))
+    print("occupied:", round(outputs[0][1].item()))
 
 
 if __name__ == "__main__":
